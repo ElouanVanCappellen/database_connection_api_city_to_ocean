@@ -539,3 +539,7 @@ app.get("/api/achievements/mine", authRequired, async (req, res) => {
         res.status(500).json({ ok: false, error: err.message });
     }
 });
+
+app.listen(PORT, () => {
+    console.log(`API running on port ${PORT}`);
+});
