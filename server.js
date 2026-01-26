@@ -15,6 +15,7 @@ import crypto from "crypto";
 import Connector from "./Connector.js";
 
 const app = express();
+
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
@@ -24,7 +25,7 @@ const PORT = Number(process.env.API_PORT) || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-    console.warn("⚠️ Missing JWT_SECRET in .env (required for auth endpoints)");
+    console.warn("Missing JWT_SECRET in .env (required for auth endpoints)");
 }
 
 // -------------------- helpers --------------------

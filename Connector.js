@@ -1,3 +1,4 @@
+// this code whas written with the help of sources and adapted by Elouan Van Cappellen
 // https://www.tencentcloud.com/techpedia/132936
 import mysql from "mysql2/promise";
 
