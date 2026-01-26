@@ -21,7 +21,8 @@ app.use(express.json({ limit: "10mb" }));
 
 const db = new Connector();
 
-const PORT = Number(process.env.API_PORT) || 3001;
+const PORT = Number(process.env.PORT) || Number(process.env.API_PORT) || 3001;
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
