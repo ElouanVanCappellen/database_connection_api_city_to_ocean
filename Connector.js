@@ -6,13 +6,13 @@ import { MongoClient } from "mongodb";
 
 export default class Connector {
     constructor() {
-        const uri = process.env.MONGODB_URI;
+        const uri = process.env.MONGO_URI;
         const dbName = process.env.DB_NAME;
 
         if (!uri || !dbName) {
             throw new Error(
                 `Missing Mongo env vars:
-                MONGODB_URI=${uri ? "set" : "missing"}
+                MONGO_URI=${uri ? "set" : "missing"}
                 DB_NAME=${dbName || "missing"}`
             );
         }
