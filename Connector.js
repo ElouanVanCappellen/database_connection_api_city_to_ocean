@@ -1,38 +1,42 @@
 // this code whas written with the help of sources and adapted by Elouan Van Cappellen
-// https://www.tencentcloud.com/techpedia/132936
-import mysql from "mysql2/promise";
+// this code was adapted by Elouan Van Cappellen
+// MongoDB Node.js Driver docs: https://www.mongodb.com/docs/drivers/node/current/
+
+import { MongoClient } from "mongodb";
 
 export default class Connector {
     constructor() {
-        const config = {
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            port: Number(process.env.DB_PORT) || 3306,
-            waitForConnections: true,
-            connectionLimit: 10,
-        };
+        const uri = process.env.MONGODB_URI;
+        const dbName = process.env.DB_NAME;
 
-        // Hard fail early if env vars are missing
-        if (!config.host || !config.user || !config.database) {
+        if (!uri || !dbName) {
             throw new Error(
-                `Missing DB env vars:
-         host=${config.host}
-         user=${config.user}
-         db=${config.database}`
+                `Missing Mongo env vars:
+                MONGODB_URI=${uri ? "set" : "missing"}
+                DB_NAME=${dbName || "missing"}`
             );
         }
 
-        this.pool = mysql.createPool(config);
+        this.client = new MongoClient(uri);
+        this.dbName = dbName;
+
+        this._db = null;
     }
 
-    async query(sql, params = []) {
-        const [rows] = await this.pool.execute(sql, params);
-        return rows;
+    async db() {
+        if (this._db) return this._db;
+        await this.client.connect();
+        this._db = this.client.db(this.dbName);
+        return this._db;
+    }
+
+    async col(name) {
+        const db = await this.db();
+        return db.collection(name);
     }
 
     async close() {
-        await this.pool.end();
+        await this.client.close();
+        this._db = null;
     }
 }
