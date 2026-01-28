@@ -1,3 +1,5 @@
+// this code whas written with the help of sources and adapted by Elouan Van Cappellen
+// this code was adapted by Elouan Van Cappellen:
 // https://www.npmjs.com/package/jsonwebtoken
 // https://auth0.com/learn/json-web-tokens
 // https://datatracker.ietf.org/doc/html/rfc7519#page-4

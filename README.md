@@ -1,42 +1,49 @@
 # city 2 ocean — Back-end API
 
-This repository contains the back-end of Trash Collector, a full-stack web application focused on detecting, logging, and correcting waste in public spaces.
-The application supports both guest users and registered users, allowing anyone to contribute data while reserving statistics and achievements for authenticated users.
+This repository contains the back-end of City to Ocean, a full-stack web application focused on tracking trash cleanup activities through photo scans, AI detection, and community engagement.
 
-The back-end exposes a REST API for authentication, events, cleanup activities, scan uploads (images + location), AI detections, user corrections, and achievements.
+The back-end provides a REST API for:
 
-The API is built with Node.js, Express, and MySQL, and is designed to be consumed by a separate front-end application (Vite / GitHub Pages).
+- user authentication (registered & guest users)
+- creating and managing cleanup events
+- uploading trash scans with location data
+- storing AI detection results and user corrections
+- earning achievements (non-guest users only)
+
+The API is built with Node.js, Express, and MongoDB, and is designed to be consumed by a separate front-end application.
+
+---
 
 ## Up and running
 
 ### Create a .env file in the root of the project (this file is not committed to Git):
 
 ```env
-DB_HOST=your_mysql_host
-DB_PORT=3306
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
-DB_NAME=your_mysql_database
+# MongoDB:
+MONGODB_URI=your_mongodb_connection_string_here
+DB_NAME=C2O
 
+# Auth:
+JWT_SECRET=your_long_random_secret_string
+
+# Server for local hosting:
 API_PORT=3001
-JWT_SECRET=your_long_random_secret
 ```
-
-### Database setup
-
-Run the provided SQL schema to create the database tables.
 
 ### Install dependencies
 
-```env
+```bash
 npm install
 ```
+
 ### Run the api locally
 
 ```env
 node server.js
 ```
+
 It will then be available at:
+
 ```env
 http://localhost:3001
 ```
@@ -45,34 +52,33 @@ http://localhost:3001
 
 ## sources
 
-
 - **Express documentation**  
   Used in `server.js` for routing, middleware setup, and handling HTTP requests and responses.  
   https://expressjs.com/
 
-- **MySQL2 documentation**
-Used to create a pooled MySQL connection and execute prepared statements.
-https://www.npmjs.com/package/mysql2
+- **MongoDB Node.js Driver**
+  MongoDB Node.js Driver.
+  https://www.mongodb.com/docs/drivers/node/current/
 
-- **MySQL2 documentation**
-Used to create a pooled MySQL connection and execute prepared statements.
-https://www.npmjs.com/package/mysql2
-
-- **Auth0 – JSON Web Tokens explained**
-Used as reference for JWT structure, signing, and verification.
-https://auth0.com/learn/json-web-tokens/
+- **MongoDB Atlas – Connection & IP access**
+  in `Connector.js`
+  https://www.mongodb.com/docs/atlas/
 
 - **Auth0 – JSON Web Tokens explained**
-Used as reference for JWT structure, signing, and verification.
-https://auth0.com/learn/json-web-tokens/
+  Used as reference for JWT structure, signing, and verification.
+  https://auth0.com/learn/json-web-tokens/
+
+- **Auth0 – JSON Web Tokens explained**
+  Used as reference for JWT structure, signing, and verification.
+  https://auth0.com/learn/json-web-tokens/
 
 - **RFC 7519 – JSON Web Token (JWT)**
-Official specification describing JWT format and security model.
-https://datatracker.ietf.org/doc/html/rfc7519
+  Official specification describing JWT format and security model.
+  https://datatracker.ietf.org/doc/html/rfc7519
 
 - **MDN Web Docs – HTTP status codes**
-Used to return appropriate API responses (200, 201, 400, 401, 403, 404, 500).
-https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+  Used to return appropriate API responses (200, 201, 400, 401, 403, 404, 500).
+  https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
 
 ## Guest-first authentication model
 
@@ -86,62 +92,65 @@ Guests can:
 - submit detection corrections
 
 Guests cannot:
+
 - earn achievements
 - have persistent profile statistics
 
 When a user registers or logs in, the guest session is replaced by a registered user session.
+
+---
 
 ## Tech stack
 
 - Node.js
 - Express
 - MySQL
-- mysql2 (database driver)
+- MongoDB
 - jsonwebtoken (JWT authentication)
 - bcryptjs (password hashing)
 - dotenv (environment variables)
 - cors (cross-origin requests)
 
+---
+
 ## API overview
-#### Health & diagnostics
+### Health & meta
 
-- GET /api – Mini API documentation (self-documenting endpoint)
-- GET /api/health – API health check
-- GET /api/test-db – Test database connection
+- GET /api – API info + endpoint list
+- GET /api/health – Health check
+- GET /api/test-db – Test MongoDB connection
 
-#### Authentication
+### Authentication
 
-- POST /api/auth/guest – Create a guest session
+- POST /api/auth/guest – Create a guest user
 - POST /api/auth/register – Register a new user
-- POST /api/auth/login – Log in a user
+- POST /api/auth/login – Log in an existing user
 
-- GET /api/me – Get current authenticated user
-- GET /api/me/stats – Get user statistics (not available for guests)
+- GET /api/me – Get current user
+- GET /api/me/stats – User stats (empty for guests)
 
-#### Events
+### Events & cleanups
 
-- GET /api/events – Get all events
-- POST /api/events – Create a new event
+- GET /api/events – List events
 
-#### Cleanups
+- POST /api/events – Create an event
 
-- GET /api/cleanups – Get all cleanup activities
-- GET /api/cleanups?eventId=ID – Get cleanups for a specific event
+- GET /api/cleanups – List cleanups (optional eventId)
 
-- POST /api/cleanups – Create a cleanup activity
+- POST /api/cleanups – Create a cleanup
 
-#### Scans (images + location)
+### Scans & detections
 
-- POST /api/scans – Upload a scan (guests allowed)
+- POST /api/scans – Upload a scan (image URL + location + AI results)
 
-- GET /api/scans – Get scans of current user
-- GET /api/scans/:id – Get detailed scan data
+- GET /api/scans – List scans for current user
 
-#### Detections & corrections
+- GET /api/scans/:id – Get scan + detections
 
-- POST /api/detections/:id/corrections – Add a correction to an AI detection (guests allowed)
+- POST /api/detections/:id/corrections – Correct an AI detection
 
-#### Achievements
+### Achievements
 
-- GET /api/achievements/catalog – List all achievements
-- GET /api/achievements/mine – List earned achievements (registered users only)
+- GET /api/achievements/catalog – Achievement list
+
+- GET /api/achievements/mine – Earned achievements (empty for guests)
