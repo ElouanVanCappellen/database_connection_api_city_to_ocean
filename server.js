@@ -134,9 +134,9 @@ async function findOrCreateGroupedCleanup({
 		eventId: null,
 		name: autoName,
 		cleanupType,
-		startsAt: date,            // group anchor
+		startsAt: date,
 		endsAt: null,
-		createdBy: userId ?? null, // can be guest user id too
+		createdBy: userId ?? null, 
 		createdAt: new Date(),
 		isAutoGrouped: true,
 	};
