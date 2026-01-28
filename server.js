@@ -38,6 +38,8 @@ process.on("unhandledRejection", (err) =>
 );
 
 const db = new Connector();
+const CLEANUP_TYPES = ["KAAI", "KAYAK"];
+const CLEANUP_GROUP_WINDOW_HOURS = 3;
 
 const PORT = Number(process.env.PORT) || Number(process.env.API_PORT) || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -101,6 +103,48 @@ function isEmail(s) {
 function asNonEmptyString(x) {
 	return typeof x === "string" && x.trim().length ? x.trim() : null;
 }
+
+async function findOrCreateGroupedCleanup({
+	cleanupType,
+	takenAt,
+	userId,
+}) {
+	// update
+	const cleanups = await cleanupsCol();
+
+	const date = takenAt instanceof Date ? takenAt : new Date(takenAt);
+	const ms = CLEANUP_GROUP_WINDOW_HOURS * 60 * 60 * 1000;
+
+	const from = new Date(date.getTime() - ms);
+	const to = new Date(date.getTime() + ms);
+
+	const existing = await cleanups.findOne({
+		cleanupType,
+		startsAt: { $gte: from, $lte: to },
+	});
+
+	if (existing) return existing;
+
+	// new
+	const autoName = `${cleanupType} cleanup ${date.toLocaleDateString("nl-BE")} ${date
+		.toTimeString()
+		.slice(0, 5)}`;
+
+	const doc = {
+		eventId: null,
+		name: autoName,
+		cleanupType,
+		startsAt: date,            // group anchor
+		endsAt: null,
+		createdBy: userId ?? null, // can be guest user id too
+		createdAt: new Date(),
+		isAutoGrouped: true,
+	};
+
+	const result = await cleanups.insertOne(doc);
+	return { ...doc, _id: result.insertedId };
+}
+
 
 // -------------------- collections --------------------
 async function usersCol() {
@@ -669,7 +713,7 @@ app.post("/api/cleanups", authRequired, async (req, res) => {
 		if (typeof name !== "string" || name.trim().length < 2)
 			return res.status(400).json({ ok: false, error: "Name too short" });
 
-		if (!["KAAI", "KANAAL"].includes(cleanupType))
+		if (!CLEANUP_TYPES.includes(cleanupType))
 			return res.status(400).json({ ok: false, error: "Invalid cleanupType" });
 
 		const cleanups = await cleanupsCol();
@@ -697,6 +741,7 @@ app.post("/api/scans", authRequired, async (req, res) => {
 	try {
 		const {
 			cleanupId = null,
+			cleanupType = null, // "KAAI" | "KAYAK"
 			imageUrl,
 			takenAt = null,
 			lat = null,
@@ -706,100 +751,98 @@ app.post("/api/scans", authRequired, async (req, res) => {
 			detections = [],
 		} = req.body || {};
 
-		if (typeof imageUrl !== "string" || imageUrl.length < 5)
+		if (typeof imageUrl !== "string" || imageUrl.length < 5) {
 			return res.status(400).json({ ok: false, error: "imageUrl required" });
+		}
 
-		const scans = await scansCol();
+		if (cleanupType && !CLEANUP_TYPES.includes(cleanupType)) {
+			return res.status(400).json({ ok: false, error: "Invalid cleanupType" });
+		}
+
+		const takenAtDate = takenAt ? new Date(takenAt) : new Date();
+
+		let finalCleanupId = cleanupId ? String(cleanupId) : null;
+
+		if (!finalCleanupId && cleanupType) {
+			const grouped = await findOrCreateGroupedCleanup({
+				cleanupType,
+				takenAt: takenAtDate,
+				userId: req.user.id,
+			});
+			finalCleanupId = String(grouped._id);
+		}
 
 		const detDocs = Array.isArray(detections)
 			? detections
-					.filter((d) => d?.wasteTypeAi)
-					.map((d) => ({
-						_id: new ObjectId(),
-						wasteTypeAi: d.wasteTypeAi,
-						brandAi: d.brandAi ?? null,
-						confAi: d.confAi ?? null,
-						x1: d.x1 ?? null,
-						y1: d.y1 ?? null,
-						x2: d.x2 ?? null,
-						y2: d.y2 ?? null,
-						cropImageUrl: d.cropImageUrl ?? null,
-						createdAt: new Date(),
-						corrections: [],
-					}))
+				.filter((d) => d?.wasteTypeAi)
+				.map((d) => ({
+					_id: new ObjectId(),
+					wasteTypeAi: d.wasteTypeAi,
+					brandAi: d.brandAi ?? null,
+					confAi: d.confAi ?? null,
+					x1: d.x1 ?? null,
+					y1: d.y1 ?? null,
+					x2: d.x2 ?? null,
+					y2: d.y2 ?? null,
+					cropImageUrl: d.cropImageUrl ?? null,
+					createdAt: new Date(),
+					corrections: [],
+				}))
 			: [];
 
-		const doc = {
+		const scanDoc = {
 			userId: req.user.id,
-			cleanupId: cleanupId ? String(cleanupId) : null,
+			cleanupId: finalCleanupId,
+			cleanupType: cleanupType ?? null,
 			imageUrl,
-			takenAt: takenAt ? new Date(takenAt) : new Date(),
-			location: { lat, lng, gpsAccuracyM },
+			takenAt: takenAtDate,
+			location: {
+				lat,
+				lng,
+				gpsAccuracyM,
+			},
 			notes,
 			detections: detDocs,
 			createdAt: new Date(),
 		};
 
-		const result = await scans.insertOne(doc);
-		res.status(201).json({ ok: true, scanId: String(result.insertedId) });
-	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
-	}
-});
-
-app.get("/api/scans", authRequired, async (req, res) => {
-	try {
-		const { cleanupId, limit = 50, offset = 0 } = req.query;
-
 		const scans = await scansCol();
-		const filter = { userId: req.user.id };
-		if (cleanupId) filter.cleanupId = String(cleanupId);
+		const result = await scans.insertOne(scanDoc);
 
-		const rows = await scans
-			.find(filter)
-			.sort({ takenAt: -1 })
-			.skip(Number(offset))
-			.limit(Number(limit))
-			.toArray();
+		if (!req.user.isGuest) {
+			const ach = await achievementsCol();
+			const ua = await userAchievementsCol();
 
-		res.json({ ok: true, scans: rows });
+			const firstScan = await ach.findOne(
+				{ code: "FIRST_SCAN" },
+				{ projection: { _id: 1 } }
+			);
+
+			if (firstScan) {
+				await ua.updateOne(
+					{
+						userId: req.user.id,
+						achievementId: String(firstScan._id),
+					},
+					{
+						$setOnInsert: {
+							userId: req.user.id,
+							achievementId: String(firstScan._id),
+							earnedAt: new Date(),
+						},
+					},
+					{ upsert: true }
+				);
+			}
+		}
+
+		res.status(201).json({
+			ok: true,
+			scanId: String(result.insertedId),
+			cleanupId: finalCleanupId,
+		});
 	} catch (err) {
-		res.status(500).json({ ok: false, error: err.message });
-	}
-});
-
-// -------------------- confirmed scan items  --------------------
-
-app.post("/api/scans/items", authRequired, async (req, res) => {
-	try {
-		const objectName = asNonEmptyString(req.body?.objectName);
-		const category = asNonEmptyString(req.body?.category);
-		const ai = req.body?.ai ?? null;
-
-		if (!objectName)
-			return res
-				.status(400)
-				.json({ ok: false, error: "objectName is required" });
-		if (!category)
-			return res.status(400).json({ ok: false, error: "category is required" });
-
-		const scanItems = await scanItemsCol();
-		const doc = {
-			userId: req.user.id,
-			objectName,
-			category,
-			ai,
-			createdAt: new Date(),
-		};
-
-		const result = await scanItems.insertOne(doc);
-
-		const ms = await evaluateAndPersistMilestones(req.user.id);
-
-		res
-			.status(201)
-			.json({ ok: true, itemId: String(result.insertedId), milestones: ms });
-	} catch (err) {
+		console.error("POST /api/scans failed:", err);
 		res.status(500).json({ ok: false, error: err.message });
 	}
 });
