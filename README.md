@@ -1,5 +1,7 @@
 # city 2 ocean — Back-end API
 
+Link to the running Render host [API link](https://database-connection-api-city-to-ocean.onrender.com/api)
+
 This repository contains the back-end of City to Ocean, a full-stack web application focused on tracking trash cleanup activities through photo scans, AI detection, and community engagement.
 
 The back-end provides a REST API for:
@@ -114,6 +116,7 @@ When a user registers or logs in, the guest session is replaced by a registered 
 ---
 
 ## API overview
+
 ### Health & meta
 
 - GET /api – API info + endpoint list
